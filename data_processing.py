@@ -12,6 +12,10 @@ from sklearn.model_selection import train_test_split
 from sacremoses import MosesTruecaser
 from nltk.tokenize import word_tokenize
 
+MAX_SENT_LENGTH = 250
+seed = 42
+random.seed(seed)
+
 
 def split_train_dev(infile, split_size):
     with open(infile, "r", encoding="utf8") as open_file:
@@ -26,11 +30,11 @@ def split_train_dev(infile, split_size):
     print("Dev size: ", len(dev))
 
     with open(infile + ".train.split", "w", encoding="utf8") as open_file1:
-        open_file1.write(("sentence" + "\t" + "lable" + "\n"))
+        open_file1.write(("sentence" + "\t" + "label" + "\n"))
         open_file1.writelines(train)
 
     with open(infile + ".dev.split", "w", encoding="utf8") as open_file2:
-        open_file2.write(("sentence" + "\t" + "lable" + "\n"))
+        open_file2.write(("sentence" + "\t" + "label" + "\n"))
         open_file2.writelines(dev)
 
 
@@ -41,20 +45,20 @@ def tokenzier_truecaser(inputfile, outputfile):
     mtr = MosesTruecaser()
 
     tok_sentances = []
-    tok_sentances_with_lable = []
+    tok_sentances_with_label = []
     unique_labels = Counter()
 
     for line in reader:
         if line != "\n" and line.__contains__("\t"):
-            lable, _, sentence = line.split("\t")
-            if unique_labels.__contains__(lable) is False:
-                unique_labels[lable] = 1
+            label, _, sentence = line.split("\t")
+            if unique_labels.__contains__(label) is False:
+                unique_labels[label] = 1
             else:
-                unique_labels[lable] += 1
+                unique_labels[label] += 1
             if re.search('[a-zA-Z]', sentence) is not None:
                 tok_sentance = word_tokenize(sentence)
                 tok_sentances.append(tok_sentance)
-                tok_sentances_with_lable.append(lable + "\t" + " ".join(tok_sentance))
+                tok_sentances_with_label.append(label + "\t" + " ".join(tok_sentance))
 
     print("number of unique labels: ", len(unique_labels))
 
@@ -63,11 +67,11 @@ def tokenzier_truecaser(inputfile, outputfile):
 
     my_truecaser = MosesTruecaser(outputfile + ".truecasemodel")
 
-    output_file.write(("sentence" + "\t" + "lable" + "\n").encode("utf8"))
+    output_file.write(("sentence" + "\t" + "label" + "\n").encode("utf8"))
 
-    for line in tok_sentances_with_lable:
-        lable, sentence = line.split("\t")
-        output_file.write((my_truecaser.truecase(sentence, return_str=True) + "\t" + lable + "\n").encode("utf8"))
+    for line in tok_sentances_with_label:
+        label, sentence = line.split("\t")
+        output_file.write((my_truecaser.truecase(sentence, return_str=True) + "\t" + label + "\n").encode("utf8"))
 
 
 def binary_classification(inputfile, outputfile):
@@ -76,15 +80,15 @@ def binary_classification(inputfile, outputfile):
 
     with open(outputfile, "w", encoding="utf8") as open_file:
         reader = reader[1:]  # skip header
-        open_file.write("sentence" + "\t" + "lable" + "\n")
+        open_file.write("sentence" + "\t" + "label" + "\n")
 
         for line in reader:
             if line != "\n" and line.__contains__("\t"):
-                sentence, lable = line.split("\t")
-                lable = lable.replace("\n", "")
-                if lable == "SUD":
+                sentence, label = line.split("\t")
+                label = label.replace("\n", "")
+                if label == "SUD":
                     open_file.write(sentence + "\t" + "0" + "\n")
-                elif lable == "HOL":
+                elif label == "HOL":
                     open_file.write(sentence + "\t" + "1" + "\n")
 
 
@@ -109,139 +113,213 @@ def process_germen_data(raw_input_file):
         print("Splitting done!")
 
 
-def sentence_validattion_check(sentence, last_sentences):
-    distance = 20
-
-    if last_sentences[0] !="" and last_sentences[1] !="":
-        distances = []
-
-        for last_sentence in last_sentences:
-            distances.append(Levenshtein.distance(sentence, last_sentence))
-            # distances.append(Levenshtein.distance(sentence[0:20], last_sentence[0:20]))
-            # distances.append(Levenshtein.distance(sentence[-20:], last_sentence[-20:]))
-
-        distance = min(distances)
+def get_label(inputfile):
+    path = inputfile.split("/")  # split path
+    label = ""
+    for folder in path:
+        if folder.__contains__("_texts"):
+            label = folder.split("_")[0].upper()
+            break
+    return label
 
 
+def too_much_numbers(sentence):
+    # check if half of the sentence is numbers
+    # if more than one third of the sentence is numbers, then it is not a valid sentence
+    numbers = re.findall(r'\d+', sentence)
+    if len(numbers) > len(sentence.split(' ')) / 3:
+        return True
+    else:
+        return False
+
+
+def sentence_validation_check(sentence):
     if sentence != "\n" and \
             sentence != "" and \
             sentence != " " and \
-            len(sentence) > 5 and \
-            sentence.count(";/") < 1 \
+            len(sentence) > 5 \
+            and sentence.count(";/") < 1 \
             and sentence.count("&lt;") < 1 \
             and sentence.count("&gt;") < 1 \
-            and sentence.__contains__("http://www.") is False \
-            and re.search('[a-zA-Z]', sentence) is not None \
-            and distance >= 20 \
-            and last_sentences[0][0:20] != sentence[0:20] \
-            and last_sentences[1][0:20] != sentence[0:20] \
-            and sentence[-20:] != last_sentences[0][-20:] \
-            and sentence[-20:] != last_sentences[1][-20:]:
+            and sentence.count("timestamp") < 1 \
+            and sentence.count("username") < 1 \
+            and sentence.count("wiki") < 1 \
+            and sentence.count("__NOEDITSECTION__") < 1 \
+            and sentence.__contains__("http://") is False \
+            and too_much_numbers(sentence) is False \
+            and re.search('[a-zA-Z]', sentence) is not None:
+
         return True
 
     else:
         return False
 
 
-def break_into_small_sentences(sentence, trimmed_sentences, random_length_limit):
-    # repressively break sentence into smaller sentences if it is longer than 250
-    if len(sentence) > random_length_limit:
-        # randomly select a symbol to break the sentence into smaller sentences
-        symbols = [".", "!", "?", "!", ":", ";", ","]
-        symbol = random.choice(symbols)
+def sentences_are_similar(current_sentence, last_sentence):
+    distance = Levenshtein.distance(current_sentence, last_sentence)
+    if distance >= 30:
+        return False
+    else:
+        return True
 
+
+def break_into_small_sentences(sentence, trimmed_sentences):
+    symbols = [".", "!", "?", "!", ":", ";", ",", ")"]
+    symbol = random.choice(symbols)
+
+    # keep breaking sentence into smaller sentences until the length of the sentence is less than the random length limit
+    while len(sentence) > MAX_SENT_LENGTH:
+        random_length_limit = random.randint(50, MAX_SENT_LENGTH)
         last_period_index = sentence.rfind(symbol, 0, random_length_limit)
         if last_period_index != -1:
             trimmed_sentences.append(sentence[0:last_period_index + 1])
-            break_into_small_sentences(sentence[last_period_index + 1:], trimmed_sentences, random.randint(50, 250))
+            sentence = sentence[last_period_index + 1:]
         else:
             trimmed_sentences.append(sentence[0:random_length_limit])
-            break_into_small_sentences(sentence[random_length_limit:], trimmed_sentences, random.randint(50, 250))
+            sentence = sentence[random_length_limit:]
+
+    trimmed_sentences.append(sentence)
 
     return trimmed_sentences
 
 
-def extract_sentences(inputfile, outputfile, lable):
+def get_clean_sentence(text):
+    sentence = text.strip(" ").strip("\n").replace("\n", "")
+    sentence = sentence.replace("&lt;br&gt;", "")
+    sentence = sentence.replace("&lt;br /&gt;", "")
+    sentence = sentence.replace("&lt;br/&gt;", "")
+    sentence = sentence.replace("&lt;br / &gt;", "")
+    sentence = sentence.replace(";/", "")
+    sentence = sentence.replace("&lt;", "")
+    sentence = sentence.replace("&gt;", "")
+    sentence = sentence.replace("\u00a0", " ")
+    return sentence
+
+
+def extract_sentences(inputfile, outputfile, label):
     with open(inputfile, "r", encoding="utf8") as open_file:
         reader = open_file.readlines()
 
-    seed = 42
-    random.seed(seed)
-
     with open(outputfile, "w", encoding="utf8") as open_file:
-        open_file.write("sentence" + "\t" + "lable" + "\n")
-        last_two_sentences = ["", ""]
+        open_file.write("sentence" + "\t" + "label" + "\n")
         longest_sentence_length = 0
         number_of_extracted_sentences = 0
-        for line in reader:
-            json_reader_line = json.loads(line)
-            text = json_reader_line['text']
-            if text != "\n" and text != "" and text != " ":
-                sentence = text.strip(" ").strip("\n").replace("\n", "")
-                trimmed_sentences = []
-                sentence = sentence.replace("&lt;br&gt;", "")
-                sentence = sentence.replace("&lt;br /&gt;", "")
-                sentence = sentence.replace("&lt;br/&gt;", "")
-                sentence = sentence.replace("&lt;br / &gt;", "")
+        output_sentences_list = []
+        for index, line in enumerate(reader):
+            last_text = json.loads(reader[index - 1])["text"]
+            last_last_text = json.loads(reader[index - 2])["text"]
+            current_text = json.loads(line)["text"]
 
-                if len(sentence) > 100:
-                    for sub_sentence in break_into_small_sentences(sentence, trimmed_sentences,
-                                                                   random.randint(50, 250)):
-                        if len(sub_sentence) > longest_sentence_length:
-                            longest_sentence_length = len(sub_sentence)
+            if sentences_are_similar(last_text, current_text) is False and sentences_are_similar(last_last_text,
+                                                                                                 current_text) is False:
+                sentence = get_clean_sentence(current_text)
+                if sentence_validation_check(sentence):
+                    trimmed_sentences = []
+                    if len(sentence) > MAX_SENT_LENGTH:
+                        for sub_sentence in break_into_small_sentences(sentence, trimmed_sentences):
+                            if sentence_validation_check(sub_sentence):
+                                if len(sub_sentence) > longest_sentence_length:
+                                    longest_sentence_length = len(sub_sentence)
+                                # remove sentence's starting spaces
+                                sub_sentence = sub_sentence.strip(" ").strip("\n")
+                                output_sentences_list.append(sub_sentence)
+                                number_of_extracted_sentences += 1
+                    else:
 
-                        if sentence_validattion_check(sub_sentence, last_two_sentences):
-                            # remove sentence's starting spaces
-                            sub_sentence = sub_sentence.strip(" ").strip("\n")
-                            last_two_sentences[0] = last_two_sentences[1]
-                            last_two_sentences[1] = sub_sentence
-                            # print(sub_sentence + "\t" + lable + "\n")
-                            open_file.write(sub_sentence + "\t" + lable + "\n")
-                            number_of_extracted_sentences += 1
-                else:
-                    if sentence_validattion_check(sentence, last_two_sentences):
                         # remove sentence's starting spaces
                         sentence = sentence.strip(" ").strip("\n")
-                        # print(sentence + "\t" + lable + "\n")
-                        last_two_sentences[0] = last_two_sentences[1]
-                        last_two_sentences[1] = sentence
-                        open_file.write(sentence + "\t" + lable + "\n")
+                        output_sentences_list.append(sentence)
                         number_of_extracted_sentences += 1
-                        if number_of_extracted_sentences >= 160:
-                            print(
-                                "Warning: number of extracted sentences is 160, which is the same as the number of original sentences!")
+                    # if number_of_extracted_sentences == 14:
+                    #     print("here")
 
-        print("longest sentence length: ", longest_sentence_length)
-        print("number of original sentences: ", len(reader))
-        print("number of extracted sentences: ", number_of_extracted_sentences)
+        output_sentences_list = double_check_for_duplicates(output_sentences_list)
+
+        for sentence in output_sentences_list:
+            open_file.write(sentence + "\t" + label + "\n")
 
 
-def get_lable(inputfile):
-    path = inputfile.split("/")  # split path
-    lable = ""
-    for folder in path:
-        if folder.__contains__("_texts"):
-            lable = folder.split("_")[0].upper()
-            break
-    return lable
+def double_check_for_duplicates(output_sentences_list):
+    for index, sentence in enumerate(output_sentences_list):
+        # compare current sentence with all the sentences after it to check if they are similar
+        for next_sentence in output_sentences_list[index + 1:]:
+            distance = Levenshtein.distance(sentence, next_sentence)
+            if distance < 30:
+                # print("duplicate found: \n", sentence, "\n",next_sentence)
+                output_sentences_list.remove(next_sentence)
+    return output_sentences_list
+
+
+def get_data_statistics(data_path):
+    with open(data_path, "r", encoding="utf8") as open_file:
+        reader = open_file.readlines()
+
+    number_of_sentences = 0
+    number_of_words = 0
+    number_of_characters = 0
+    longest_sentence_length = 0
+    for index, line in enumerate(reader):
+        if index > 0:
+            number_of_sentences += 1
+            sentence = line.split("\t")[0]
+            number_of_words += len(sentence.split(" "))
+            number_of_characters += len(sentence)
+            if len(sentence) > longest_sentence_length:
+                longest_sentence_length = len(sentence)
+
+    print("number of sentences: ", number_of_sentences)
+    print("number of words: ", number_of_words)
+    print("number of characters: ", number_of_characters)
+    print("average number of words per sentence: ", number_of_words / number_of_sentences)
+    print("average number of characters per sentence: ", number_of_characters / number_of_sentences)
+    print("longest sentence length: ", longest_sentence_length)
+
+    # write the data statistics to a file
+    with open(data_path + "_data_statistics.txt", "w", encoding="utf8") as open_file:
+        open_file.write("number of sentences: " + str(number_of_sentences) + "\n")
+        open_file.write("number of words: " + str(number_of_words) + "\n")
+        open_file.write("number of characters: " + str(number_of_characters) + "\n")
+        open_file.write("average number of words per sentence: " + str(number_of_words / number_of_sentences) + "\n")
+        open_file.write("average number of characters per sentence: " + str(number_of_characters / number_of_sentences) + "\n")
+        open_file.write("longest sentence length: " + str(longest_sentence_length) + "\n")
+
+
+def combine_extract_files(folder_path):
+    with open(folder_path + "extracted_combined", "w", encoding="utf8") as open_file:
+        open_file.write("sentence" + "\t" + "label" + "\n")
+        for file in os.listdir(folder_path):
+            if file.endswith(".extract"):
+                with open(folder_path + file, "r", encoding="utf8") as open_file2:
+                    reader = open_file2.readlines()
+                    for index, line in enumerate(reader):
+                        if index > 0:
+                            open_file.write(line)
 
 
 def process_italian_data(raw_italian_folder):
-    # for sub_folder in glob.glob(raw_italian_folder + "/*"):
-    #     sub_folder = sub_folder.replace("\\", "/")
-    #     for AA in glob.glob(sub_folder + "/*"):
-    #         lable = get_lable(AA)
-    #         for file in glob.glob(AA + "/*"):
-    #             if file.endswith(".extract") is not True:
-    #                 extract_sentences(file, file + ".extract", lable)
-    #                 print("Extracting sentences from " + file + " done!")
+    for sub_folder in glob.glob(raw_italian_folder + "/*"):
+        sub_folder = sub_folder.replace("\\", "/")
+        for AA in glob.glob(sub_folder + "/*"):
+            label = get_label(AA)
 
-    extract_sentences(raw_italian_folder + "AA/wiki_02", raw_italian_folder + "AA/wiki_02.extract", "AA")
+            for file in glob.glob(AA + "/*"):
+                if file.endswith(".extract") is not True and file.__contains__("combined_extracted") is False\
+                        and file.__contains__("data_statistics") is False:
+                    extract_sentences(file, file + ".extract", label)
+                    print("Extracting sentences from " + file + " done!\n")
+
+            combine_extract_files(AA + "/")
+            get_data_statistics(AA + "/extracted_combined")
+            print("Combining extracted sentences from " + label + " done!")
+            print("************************************************************\n")
+
+    # extract_sentences(raw_italian_folder + "AA/wiki_01", raw_italian_folder + "AA/wiki_01.extract", "test-label")
 
 
 def main():
     # process_germen_data(raw_input_file = "../data/LSDC/LSDC_1.1.test")
-    process_italian_data(raw_italian_folder="../data/wiki_italian_data/eml_texts/")
+    process_italian_data(raw_italian_folder="../temp")
+    # process_italian_data(raw_italian_folder="../temp/lij_texts/")
 
 
 if __name__ == "__main__":
