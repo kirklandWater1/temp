@@ -7,11 +7,11 @@ import glob
 import json
 import random
 import Levenshtein
-
+import numpy as np
 from sklearn.model_selection import train_test_split
 from sacremoses import MosesTruecaser
 from nltk.tokenize import word_tokenize
-
+import matplotlib.pyplot as plt
 MAX_SENT_LENGTH = 250
 seed = 42
 random.seed(seed)
@@ -113,6 +113,41 @@ def process_germen_data(raw_input_file):
         print("Splitting done!")
 
 
+def get_data_statistics_de(input_folder):
+    # get all files in the folder
+    for file in glob.glob(input_folder + "/*"):
+        if file.endswith(".tsv") is True:
+            with open(file, "r", encoding="utf8") as open_file:
+                reader = open_file.readlines()
+                number_of_sentences = 0
+                number_of_words = 0
+                number_of_characters = 0
+                longest_sentence_length = 0
+                list_words = []
+                for index, line in enumerate(reader):
+                    if index > 0:
+                        number_of_sentences += 1
+                        sentence = line.split("\t")[0]
+                        number_of_words += len(sentence.split(" "))
+                        number_of_characters += len(sentence)
+                        list_words.append(len(sentence.split(" ")))
+                        if len(sentence) > longest_sentence_length:
+                            longest_sentence_length = len(sentence)
+                plt.plot(list_words, linestyle='dotted')
+                plt.show()
+                print("*********************************")
+                print("File name: ", file)
+                print("number of sentences: ", number_of_sentences)
+                print("number of words: ", number_of_words)
+                print("number of characters: ", number_of_characters)
+                print(" average number of words per sentence: ", number_of_words / number_of_sentences)
+                print(" midient number of words per sentence: ", np.median(list_words))
+                print("average number of characters per sentence: ", number_of_characters / number_of_sentences)
+                print("longest sentence length: ", longest_sentence_length)
+                print("max length sentence: ", max(list_words))
+                print("*********************************")
+
+
 def get_label(inputfile):
     path = inputfile.split("/")  # split path
     label = ""
@@ -164,7 +199,7 @@ def sentences_are_similar(current_sentence, last_sentence):
 
 
 def break_into_small_sentences(sentence, trimmed_sentences):
-    symbols = [".", "!", "?", "!", ":", ";", ",", ")"]
+    symbols = [".", "!", "?"]
     symbol = random.choice(symbols)
 
     # keep breaking sentence into smaller sentences until the length of the sentence is less than the random length limit
@@ -250,42 +285,51 @@ def double_check_for_duplicates(output_sentences_list):
     return output_sentences_list
 
 
-def get_data_statistics(data_path):
+def get_data_statistics_it(data_path):
     with open(data_path, "r", encoding="utf8") as open_file:
         reader = open_file.readlines()
 
-    number_of_sentences = 0
-    number_of_words = 0
-    number_of_characters = 0
-    longest_sentence_length = 0
-    for index, line in enumerate(reader):
-        if index > 0:
-            number_of_sentences += 1
-            sentence = line.split("\t")[0]
-            number_of_words += len(sentence.split(" "))
-            number_of_characters += len(sentence)
-            if len(sentence) > longest_sentence_length:
-                longest_sentence_length = len(sentence)
+        number_of_sentences = 0
+        number_of_words = 0
+        number_of_characters = 0
+        longest_sentence_length = 0
+        list_words = []
+        for index, line in enumerate(reader):
+            if index > 0:
+                number_of_sentences += 1
+               # sentence = json.loads(line)["text"]
+                sentence = line.split("\t")[0]
+                number_of_words += len(sentence.split(" "))
+                number_of_characters += len(sentence)
+                list_words.append(len(sentence.split(" ")))
+                # if len(sentence) > longest_sentence_length:
+                #     longest_sentence_length = len(sentence)
 
-    print("number of sentences: ", number_of_sentences)
-    print("number of words: ", number_of_words)
-    print("number of characters: ", number_of_characters)
-    print("average number of words per sentence: ", number_of_words / number_of_sentences)
-    print("average number of characters per sentence: ", number_of_characters / number_of_sentences)
-    print("longest sentence length: ", longest_sentence_length)
+        plt.plot(list_words, linestyle='dotted')
+        plt.show()
+        print("*********************************")
+        print("number of sentences: ", number_of_sentences)
+        print("number of words: ", number_of_words)
+        print("number of characters: ", number_of_characters)
+        print(" average number of words per sentence: ", number_of_words / number_of_sentences)
+        print(" midient number of words per sentence: ", np.median(list_words))
+        print("average number of characters per sentence: ", number_of_characters / number_of_sentences)
+        print("longest sentence length: ", longest_sentence_length)
+        print("max length sentence: ", max(list_words))
+        print("*********************************")
 
     # write the data statistics to a file
-    with open(data_path + "_data_statistics.txt", "w", encoding="utf8") as open_file:
-        open_file.write("number of sentences: " + str(number_of_sentences) + "\n")
-        open_file.write("number of words: " + str(number_of_words) + "\n")
-        open_file.write("number of characters: " + str(number_of_characters) + "\n")
-        open_file.write("average number of words per sentence: " + str(number_of_words / number_of_sentences) + "\n")
-        open_file.write("average number of characters per sentence: " + str(number_of_characters / number_of_sentences) + "\n")
-        open_file.write("longest sentence length: " + str(longest_sentence_length) + "\n")
+    # with open(data_path + "_data_statistics.txt", "w", encoding="utf8") as open_file:
+    #     open_file.write("number of sentences: " + str(number_of_sentences) + "\n")
+    #     open_file.write("number of words: " + str(number_of_words) + "\n")
+    #     open_file.write("number of characters: " + str(number_of_characters) + "\n")
+    #     open_file.write("average number of words per sentence: " + str(number_of_words / number_of_sentences) + "\n")
+    #     open_file.write("average number of characters per sentence: " + str(number_of_characters / number_of_sentences) + "\n")
+    #     open_file.write("longest sentence length: " + str(longest_sentence_length) + "\n")
 
 
 def combine_extract_files(folder_path):
-    with open(folder_path + "extracted_combined", "w", encoding="utf8") as open_file:
+    with open(folder_path + "extracted.combined", "w", encoding="utf8") as open_file:
         open_file.write("sentence" + "\t" + "label" + "\n")
         for file in os.listdir(folder_path):
             if file.endswith(".extract"):
@@ -297,29 +341,47 @@ def combine_extract_files(folder_path):
 
 
 def process_italian_data(raw_italian_folder):
-    for sub_folder in glob.glob(raw_italian_folder + "/*"):
-        sub_folder = sub_folder.replace("\\", "/")
-        for AA in glob.glob(sub_folder + "/*"):
-            label = get_label(AA)
+    # for sub_folder in glob.glob(raw_italian_folder + "/*"):
+    #     sub_folder = sub_folder.replace("\\", "/")
+    #     for AA in glob.glob(sub_folder + "/*"):
+    #         label = get_label(AA)
+    #
+    #         for file in glob.glob(AA + "/*"):
+    #             if file.endswith(".extract") is not True and file.__contains__("combined") is False\
+    #                     and file.__contains__("statistics") is False:
+    #                 extract_sentences(file, file + ".extract", label)
+    #                 print("Extracting sentences from " + file + " done!\n")
+    #
+    #         combine_extract_files(AA + "/")
+    #         get_data_statistics_it(AA + "/extracted.combined")
+    #         print("Combining extracted sentences from " + label + " done!")
+    #         print("************************************************************\n")
+    #
+    # # combine all the extracted.combined files from all the sub folders into one file
+    # with open(raw_italian_folder + "all_extracted.combined", "w", encoding="utf8") as open_file:
+    #     open_file.write("sentence" + "\t" + "label" + "\n")
+    #     for sub_folder in glob.glob(raw_italian_folder + "/*"):
+    #         sub_folder = sub_folder.replace("\\", "/")
+    #         for AA in glob.glob(sub_folder + "/*"):
+    #             with open(AA + "/extracted.combined", "r", encoding="utf8") as open_file2:
+    #                 reader = open_file2.readlines()
+    #                 for index, line in enumerate(reader):
+    #                     if index > 0:
+    #                         open_file.write(line)
+    #
+    # get_data_statistics_it(raw_italian_folder + "all_extracted.combined")
+    # print("Combining extracted sentences from all the sub folders done!")
+    # print("************************************************************\n")
+    #
 
-            for file in glob.glob(AA + "/*"):
-                if file.endswith(".extract") is not True and file.__contains__("combined_extracted") is False\
-                        and file.__contains__("data_statistics") is False:
-                    extract_sentences(file, file + ".extract", label)
-                    print("Extracting sentences from " + file + " done!\n")
-
-            combine_extract_files(AA + "/")
-            get_data_statistics(AA + "/extracted_combined")
-            print("Combining extracted sentences from " + label + " done!")
-            print("************************************************************\n")
-
-    # extract_sentences(raw_italian_folder + "AA/wiki_01", raw_italian_folder + "AA/wiki_01.extract", "test-label")
+    extract_sentences(raw_italian_folder + "AA/wiki_00", raw_italian_folder + "AA/wiki_00.extract", "test-label")
 
 
 def main():
     # process_germen_data(raw_input_file = "../data/LSDC/LSDC_1.1.test")
-    process_italian_data(raw_italian_folder="../temp")
-    # process_italian_data(raw_italian_folder="../temp/lij_texts/")
+    # process_italian_data(raw_italian_folder="../temp")
+    process_italian_data(raw_italian_folder="../temp/eml_texts/")
+    get_data_statistics_it("/Users/rxyz/PycharmProjects/selfExplain-local/SelfExplain/temp/eml_texts/AA/wiki_00.extract")
 
 
 if __name__ == "__main__":
